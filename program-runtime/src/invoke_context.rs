@@ -4,6 +4,7 @@ use {
             ProgramCacheEntry, ProgramCacheEntryType, ProgramCacheForTxBatch,
             ProgramRuntimeEnvironments,
         },
+        profiling_state::ProfilingState,
         stable_log,
         sysvar_cache::SysvarCache,
     },
@@ -204,6 +205,8 @@ pub struct InvokeContext<'a> {
     pub timings: ExecuteDetailsTimings,
     pub syscall_context: Vec<Option<SyscallContext>>,
     traces: Vec<Vec<[u64; 12]>>,
+    /// Stack of profiling states for nested CPI call tracking
+    profiling_states: Vec<ProfilingState>,
 }
 
 impl<'a> InvokeContext<'a> {
@@ -226,6 +229,7 @@ impl<'a> InvokeContext<'a> {
             timings: ExecuteDetailsTimings::default(),
             syscall_context: Vec::new(),
             traces: Vec::new(),
+            profiling_states: Vec::new(),
         }
     }
 
@@ -291,6 +295,7 @@ impl<'a> InvokeContext<'a> {
         if let Some(Some(syscall_context)) = self.syscall_context.pop() {
             self.traces.push(syscall_context.trace_log);
         }
+
         self.transaction_context.pop()
     }
 
@@ -549,6 +554,10 @@ impl<'a> InvokeContext<'a> {
             .set_return_data(program_id, Vec::new())?;
         let logger = self.get_log_collector();
         stable_log::program_invoke(&logger, &program_id, self.get_stack_height());
+
+        // Push new profiling state for this program invocation
+        self.push_profiling_state();
+
         let pre_remaining_units = self.get_remaining();
         // In program-runtime v2 we will create this VM instance only once per transaction.
         // `program_runtime_environment_v2.get_config()` will be used instead of `mock_config`.
@@ -571,6 +580,10 @@ impl<'a> InvokeContext<'a> {
         let result = match vm.program_result {
             ProgramResult::Ok(_) => {
                 stable_log::program_success(&logger, &program_id);
+                // Pop and flush profiling results after successful program completion
+                self.pop_and_flush_profiling_state();
+                stable_log::program_success(&logger, &program_id);
+
                 Ok(())
             }
             ProgramResult::Err(ref err) => {
@@ -578,13 +591,25 @@ impl<'a> InvokeContext<'a> {
                     if let Some(instruction_err) = syscall_error.downcast_ref::<InstructionError>()
                     {
                         stable_log::program_failure(&logger, &program_id, instruction_err);
+
+                        // Pop profiling state on error (no flush)
+                        self.pop_profiling_state_on_error();
+
                         Err(instruction_err.clone())
                     } else {
                         stable_log::program_failure(&logger, &program_id, syscall_error);
+
+                        // Pop profiling state on error (no flush)
+                        self.pop_profiling_state_on_error();
+
                         Err(InstructionError::ProgramFailedToComplete)
                     }
                 } else {
                     stable_log::program_failure(&logger, &program_id, err);
+
+                    // Pop profiling state on error (no flush)
+                    self.pop_profiling_state_on_error();
+
                     Err(InstructionError::ProgramFailedToComplete)
                 }
             }
@@ -672,6 +697,57 @@ impl<'a> InvokeContext<'a> {
             })
             .map(|program_account| *program_account.get_owner() != bpf_loader_deprecated::id())
             .unwrap_or(true)
+    }
+
+    /// Push a new profiling state for a new program invocation
+    fn push_profiling_state(&mut self) {
+        self.profiling_states.push(ProfilingState::new());
+    }
+
+    /// Get mutable reference to current (top) profiling state
+    pub fn get_profiling_state_mut(&mut self) -> Option<&mut ProfilingState> {
+        self.profiling_states.last_mut()
+    }
+
+    /// Pop and flush the current profiling state when program completes successfully
+    fn pop_and_flush_profiling_state(&mut self) {
+        if let Some(mut state) = self.profiling_states.pop() {
+            if state.completed_count() > 0 {
+                // Process completed profiling entries
+                state.post_process();
+
+                // Log results in required format
+                for (i, entry) in state.get_completed().iter().enumerate() {
+                    let mut log_message = format!(
+                        "# {:>2}    {}\nCU                                                  consumed {:>5} (net {:>5}) of {:>5} CU",
+                        i + 1,
+                        entry.id,
+                        entry.total_cu,
+                        entry.net_cu,
+                        entry.remaining_cu
+                    );
+
+                    // Add heap information if tracking is enabled
+                    if let Some(ref heap) = entry.heap {
+                        log_message.push_str(&format!(
+                            "\nHEAP                                                consumed {:>5} (net {:>5}) of {:>5} bytes",
+                            heap.total_heap,
+                            heap.net_heap,
+                            heap.remaining_heap
+                        ));
+                    }
+
+                    stable_log::program_log(&self.get_log_collector(), &log_message);
+                }
+            }
+        }
+    }
+
+    /// Pop profiling state on error (no flush)
+    fn pop_profiling_state_on_error(&mut self) {
+        if !self.profiling_states.is_empty() {
+            self.profiling_states.pop();
+        }
     }
 
     // Set this instruction syscall context

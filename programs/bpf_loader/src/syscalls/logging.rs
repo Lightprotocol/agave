@@ -153,3 +153,75 @@ declare_builtin_function!(
         Ok(0)
     }
 );
+
+declare_builtin_function!(
+    /// Start profiling with ID (free syscall for profiling)
+    SyscallLogComputeUnitsStart,
+    fn rust(
+        invoke_context: &mut InvokeContext,
+        id_addr: u64,
+        id_len: u64,
+        heap_value: u64,
+        with_heap: u64,
+        _arg5: u64,
+        memory_mapping: &mut MemoryMapping,
+    ) -> Result<u64, Error> {
+        // This syscall is free for profiling purposes - no compute cost
+        
+        // Get current CU before borrowing mutably
+        let current_cu = invoke_context.get_remaining();
+        
+        // Translate string ID from program memory and start profiling
+        translate_string_and_do(
+            memory_mapping,
+            id_addr,
+            id_len,
+            invoke_context.get_check_aligned(),
+            &mut |string: &str| {
+                if let Some(profiling_state) = invoke_context.get_profiling_state_mut() {
+                    profiling_state.start(string.to_string(), current_cu, heap_value, with_heap != 0);
+                }
+                Ok(0)
+            },
+        )?;
+        
+        Ok(0)
+    }
+);
+
+declare_builtin_function!(
+    /// End profiling with ID (free syscall for profiling)
+    SyscallLogComputeUnitsEnd,
+    fn rust(
+        invoke_context: &mut InvokeContext,
+        id_addr: u64,
+        id_len: u64,
+        heap_value: u64,
+        with_heap: u64,
+        _arg5: u64,
+        memory_mapping: &mut MemoryMapping,
+    ) -> Result<u64, Error> {
+        // This syscall is free for profiling purposes - no compute cost
+        
+        // Get current CU before borrowing mutably
+        let current_cu = invoke_context.get_remaining();
+        
+        // Translate string ID from program memory and end profiling
+        translate_string_and_do(
+            memory_mapping,
+            id_addr,
+            id_len,
+            invoke_context.get_check_aligned(),
+            &mut |string: &str| {
+                if let Some(profiling_state) = invoke_context.get_profiling_state_mut() {
+                    if let Err(err) = profiling_state.end(string, current_cu, heap_value, with_heap != 0) {
+                        ic_logger_msg!(invoke_context.get_log_collector(), "Profiling error: {}", err);
+                    }
+                }
+                Ok(0)
+            },
+        )?;
+        
+        Ok(0)
+    }
+);

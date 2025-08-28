@@ -24,58 +24,62 @@ metrics = ["dep:solana-metrics"]
 shuttle-test = ["solana-type-overrides/shuttle-test", "solana-sbpf/shuttle-test"]
 
 [dependencies]
-base64 = { workspace = true }
-bincode = { workspace = true }
-enum-iterator = { workspace = true }
-itertools = { workspace = true }
-log = { workspace = true }
-percentage = { workspace = true }
-rand = { workspace = true }
-serde = { workspace = true }
-solana-account = { workspace = true, features = ["bincode"] }
-solana-clock = { workspace = true }
-solana-epoch-rewards = { workspace = true }
-solana-epoch-schedule = { workspace = true }
-solana-fee-structure = { workspace = true }
-solana-frozen-abi = { workspace = true, optional = true, features = [
+base64 = "0.22.1"
+bincode = "1.3.3"
+enum-iterator = "1.5.0"
+itertools = "0.12.1"
+log = "0.4.27"
+percentage = "0.1.0"
+rand = "0.8.5"
+serde = "1.0.219"
+solana-account = { version = "2.2.1", features = ["bincode"] }
+solana-clock = "2.2.2"
+# solana-compute-budget = "2.3"  # Not needed - using local execution_budget module
+solana-epoch-rewards = "2.2.1"
+solana-epoch-schedule = "2.2.1"
+solana-feature-set = "2.2.5"
+solana-frozen-abi = { version = "2.2.1", optional = true, features = [
     "frozen-abi",
 ] }
-solana-frozen-abi-macro = { workspace = true, optional = true, features = [
+solana-frozen-abi-macro = { version = "2.2.1", optional = true, features = [
     "frozen-abi",
 ] }
-solana-hash = { workspace = true }
-solana-instruction = { workspace = true }
-solana-last-restart-slot = { workspace = true }
-solana-log-collector = { workspace = true }
-solana-measure = { workspace = true }
-solana-metrics = { workspace = true, optional = true }
-solana-program-entrypoint = { workspace = true }
-solana-pubkey = { workspace = true }
-solana-rent = { workspace = true }
-solana-sbpf = { workspace = true }
-solana-sdk-ids = { workspace = true }
-solana-slot-hashes = { workspace = true }
-solana-stable-layout = { workspace = true }
-solana-svm-callback = { workspace = true }
-solana-svm-feature-set = { workspace = true }
-solana-system-interface = { workspace = true }
-solana-sysvar = { workspace = true }
-solana-sysvar-id = { workspace = true }
-solana-timings = { workspace = true }
-solana-transaction-context = { workspace = true }
-solana-type-overrides = { workspace = true }
-thiserror = { workspace = true }
+solana-hash = "2.3"
+solana-instruction = "2.3"
+solana-last-restart-slot = "2.2.1"
+solana-log-collector = "2.3"
+solana-measure = "2.3"
+solana-metrics = { version = "2.3", optional = true }
+solana-precompiles = "2.2.2"
+solana-pubkey = "2.4.0"
+solana-rent = "2.2.1"
+solana-sbpf = "0.11.1"
+solana-sdk-ids = "2.2.1"
+solana-slot-hashes = "2.2.1"
+solana-stable-layout = "2.2.1"
+solana-sysvar = "2.3"
+solana-sysvar-id = "2.2.1"
+solana-timings = "2.3"
+solana-transaction-context = "2.3"
+solana-type-overrides = "2.3"
+solana-program-entrypoint = "2.3"
+solana-system-interface = "2"
+solana-fee-structure = "2"
+solana-svm-callback = "2"
+solana-svm-feature-set = "2"
+thiserror = "2.0"
 
 [dev-dependencies]
-assert_matches = { workspace = true }
-solana-account-info = { workspace = true }
-solana-instruction = { workspace = true, features = ["bincode"] }
-solana-program-runtime = { path = ".", features = ["dev-context-only-utils"] }
-solana-pubkey = { workspace = true, features = ["rand"] }
-solana-transaction-context = { workspace = true, features = [
+assert_matches = "1.5.0"
+# solana-compute-budget = { version = "2.3", features = [
+#     "dev-context-only-utils",
+# ] }  # Not needed - using local execution_budget module
+solana-instruction = { version = "2.3", features = ["bincode"] }
+solana-pubkey = { version = "2.4.0", features = ["rand"] }
+solana-transaction-context = { version = "2.3", features = [
     "dev-context-only-utils",
 ] }
-test-case = { workspace = true }
+test-case = "3.3.1"
 
 [lints]
 workspace = true

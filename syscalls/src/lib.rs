@@ -10,7 +10,8 @@
 pub use self::{
     cpi::{SyscallInvokeSignedC, SyscallInvokeSignedRust},
     logging::{
-        SyscallLog, SyscallLogBpfComputeUnits, SyscallLogData, SyscallLogPubkey, SyscallLogU64,
+        SyscallLog, SyscallLogBpfComputeUnits, SyscallLogComputeUnitsEnd,
+        SyscallLogComputeUnitsStart, SyscallLogData, SyscallLogPubkey, SyscallLogU64,
     },
     mem_ops::{SyscallMemcmp, SyscallMemcpy, SyscallMemmove, SyscallMemset},
     sysvar::{
@@ -346,6 +347,8 @@ pub fn create_program_runtime_environment_v1<'a, 'ix_data>(
     result.register_function("sol_log_64_", SyscallLogU64::vm)?;
     result.register_function("sol_log_pubkey", SyscallLogPubkey::vm)?;
     result.register_function("sol_log_compute_units_", SyscallLogBpfComputeUnits::vm)?;
+    result.register_function("sol_log_compute_units_start", SyscallLogComputeUnitsStart::vm)?;
+    result.register_function("sol_log_compute_units_end", SyscallLogComputeUnitsEnd::vm)?;
 
     // Program defined addresses (PDA)
     result.register_function(

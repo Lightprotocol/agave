@@ -117,27 +117,42 @@ impl ProfilingState {
         Ok(())
     }
 
-    /// Calculate net CU consumption and net heap consumption for all completed entries
+    /// Calculate net CU consumption and net heap consumption for all completed entries.
+    /// Subtracts only direct children (not all descendants) to avoid double-counting.
     pub fn post_process(&mut self) {
         for i in 0..self.completed.len() {
             let mut children_cu = 0;
             let mut children_heap = 0;
-            let entry = &self.completed[i];
+            let entry_start = self.completed[i].start_sequence;
+            let entry_end = self.completed[i].end_sequence;
 
-            // Find all child entries (started after and ended before this entry)
-            for other in &self.completed {
-                if other.start_sequence > entry.start_sequence
-                    && other.end_sequence < entry.end_sequence
-                {
-                    children_cu += other.total_cu;
-                    if let Some(ref other_heap) = other.heap {
-                        children_heap += other_heap.total_heap;
+            for j in 0..self.completed.len() {
+                if i == j {
+                    continue;
+                }
+                let other = &self.completed[j];
+                // Check if other is a descendant of entry
+                if other.start_sequence > entry_start && other.end_sequence < entry_end {
+                    // Check if other is a DIRECT child (no intermediate ancestor between entry and other)
+                    let is_direct = !self.completed.iter().enumerate().any(|(k, mid)| {
+                        k != i
+                            && k != j
+                            && mid.start_sequence > entry_start
+                            && mid.end_sequence < entry_end
+                            && other.start_sequence > mid.start_sequence
+                            && other.end_sequence < mid.end_sequence
+                    });
+                    if is_direct {
+                        children_cu += other.total_cu;
+                        if let Some(ref other_heap) = other.heap {
+                            children_heap += other_heap.total_heap;
+                        }
                     }
                 }
             }
 
             // Update net CU
-            self.completed[i].net_cu = entry.total_cu.saturating_sub(children_cu);
+            self.completed[i].net_cu = self.completed[i].total_cu.saturating_sub(children_cu);
 
             // Update net heap if heap tracking is enabled for this entry
             if let Some(ref mut heap) = self.completed[i].heap {
@@ -305,10 +320,10 @@ mod tests {
         assert_eq!(middle.total_cu, 300); // 900 - 600
         assert_eq!(outer.total_cu, 500); // 1000 - 500
 
-        // Check net CU
+        // Check net CU (only direct children subtracted, not all descendants)
         assert_eq!(inner.net_cu, 100); // No children
-        assert_eq!(middle.net_cu, 200); // 300 - 100 (inner)
-        assert_eq!(outer.net_cu, 100); // 500 - 300 (middle) - 100 (inner) = 100
+        assert_eq!(middle.net_cu, 200); // 300 - 100 (direct child: inner)
+        assert_eq!(outer.net_cu, 200); // 500 - 300 (direct child: middle)
     }
 
     #[test]
